@@ -7,8 +7,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.location.Location;
 import android.os.Bundle;
 import android.os.Vibrator;
+import android.provider.Telephony;
 import android.support.annotation.NonNull;
 import android.support.design.widget.BottomNavigationView;
 import android.support.v4.app.ActivityCompat;
@@ -22,6 +24,7 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.ece.qmatejka.geoloc.listener.GPSLocation;
 import com.ece.qmatejka.geoloc.listener.SMSListener;
 import com.lize.oledcomm.camera_lifisdk_android.ILiFiPosition;
 import com.lize.oledcomm.camera_lifisdk_android.LiFiSdkManager;
@@ -29,6 +32,7 @@ import com.lize.oledcomm.camera_lifisdk_android.V1.LiFiCamera;
 
 public class MainActivity extends AppCompatActivity {
 
+    private static MainActivity inst;
     private static final int MY_PERMISSIONS_REQUEST_CAMERA = 140;
 
     private TextView mTextMessage;
@@ -37,7 +41,12 @@ public class MainActivity extends AppCompatActivity {
 
     private LiFiSdkManager liFiSdkManager;
     private Vibrator vibrator;
-    IntentFilter intentFilter;
+    private GPSLocation gps;
+    private SMSListener smsListener;
+
+    public static MainActivity instance() {
+        return inst;
+    }
 
     private BottomNavigationView.OnNavigationItemSelectedListener mOnNavigationItemSelectedListener
             = new BottomNavigationView.OnNavigationItemSelectedListener() {
@@ -64,18 +73,20 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        intentFilter = new IntentFilter();
-        intentFilter.addAction("SMS_RECEIVED_ACTION");
-
         mTextMessage = (TextView) findViewById(R.id.message);
         messageView = (TextView) findViewById(R.id.messageView);
         messageView.setText("En attente d'un sms...");
         button = (Button) findViewById(R.id.button);
         vibrator = (Vibrator) this.getSystemService(Context.VIBRATOR_SERVICE);
 
-        new SMSListener(this);
 
-        //registerReceiver(intentReceiver, intentFilter);
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_DENIED){
+            requestPermissions(new String[]{Manifest.permission.SEND_SMS}, 160);
+        }
+
+        smsListener = new SMSListener();
+        registerReceiver(smsListener, new IntentFilter());
+        gps = new GPSLocation(this);
 
         BottomNavigationView navigation = (BottomNavigationView) findViewById(R.id.navigation);
         navigation.setOnNavigationItemSelectedListener(mOnNavigationItemSelectedListener);
@@ -84,10 +95,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStart(){
         super.onStart();
-        Log.d("MainActivity", "Button has been clicked.");
-        if (ContextCompat.checkSelfPermission(this ,Manifest.permission.CAMERA) == PackageManager.PERMISSION_DENIED){
-            requestPermissions(new String[]{Manifest.permission.CAMERA}, MY_PERMISSIONS_REQUEST_CAMERA);
-        }
+        inst = this;
+        //Log.d("MainActivity", "Button has been clicked.");
+        /*
         liFiSdkManager = new LiFiSdkManager(this, LiFiSdkManager.CAMERA_LIB_VERSION_0_1,
                 "token", "user", new ILiFiPosition() {
             @Override
@@ -103,6 +113,8 @@ public class MainActivity extends AppCompatActivity {
             liFiSdkManager.release();
             liFiSdkManager = null;
         }
+        */
+
 
         /*
         // Here, thisActivity is the current activity
@@ -137,12 +149,18 @@ public class MainActivity extends AppCompatActivity {
     public void onRequestPermissionsResult(int requestCode,
                                            String permissions[], int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == MY_PERMISSIONS_REQUEST_CAMERA) {
+        if (requestCode == 160) {
             if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "camera permission granted", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Permission granted", Toast.LENGTH_LONG).show();
             } else {
-                Toast.makeText(this, "camera permission denied", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Permission denied", Toast.LENGTH_LONG).show();
             }
+        }
+    }
+
+    public void requestSpecificPermission(String permission){
+        if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_DENIED){
+            requestPermissions(new String[]{permission}, 160);
         }
     }
 
@@ -157,4 +175,6 @@ public class MainActivity extends AppCompatActivity {
     public Vibrator getVibrator() {
         return vibrator;
     }
+
+    public Location getLocation() { return gps.getLocation(); }
 }
