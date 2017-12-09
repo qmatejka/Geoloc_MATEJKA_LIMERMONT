@@ -27,6 +27,7 @@ dependencies {
     androidTestImplementation 'com.android.support.test:runner:1.0.1'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.1'
     compile(name:'camera-lifisdk-android-v0.1', ext:'aar')
+    implementation 'com.google.android.gms:play-services-maps:11.6.2'
 }
 
 repositories {

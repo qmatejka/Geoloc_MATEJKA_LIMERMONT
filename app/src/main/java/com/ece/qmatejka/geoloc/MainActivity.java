@@ -16,16 +16,20 @@ import android.support.design.widget.BottomNavigationView;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
+import android.telephony.SmsManager;
 import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.ece.qmatejka.geoloc.listener.GPSLocation;
 import com.ece.qmatejka.geoloc.listener.SMSListener;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.SupportMapFragment;
 import com.lize.oledcomm.camera_lifisdk_android.ILiFiPosition;
 import com.lize.oledcomm.camera_lifisdk_android.LiFiSdkManager;
 import com.lize.oledcomm.camera_lifisdk_android.V1.LiFiCamera;
@@ -35,14 +39,19 @@ public class MainActivity extends AppCompatActivity {
     private static MainActivity inst;
     private static final int MY_PERMISSIONS_REQUEST_CAMERA = 140;
 
-    private TextView mTextMessage;
     private TextView messageView;
-    Button button;
+    private TextView alertMsg;
+    private Button button;
+    private Button buttonOK;
+    private EditText phoneNumber;
 
+    private SupportMapFragment mapFragment;
+    private BottomNavigationView navigation;
     private LiFiSdkManager liFiSdkManager;
     private Vibrator vibrator;
     private GPSLocation gps;
     private SMSListener smsListener;
+    private MapsTracker tracker;
 
     public static MainActivity instance() {
         return inst;
@@ -55,13 +64,22 @@ public class MainActivity extends AppCompatActivity {
         public boolean onNavigationItemSelected(@NonNull MenuItem item) {
             switch (item.getItemId()) {
                 case R.id.navigation_home:
-                    mTextMessage.setText(R.string.title_home);
+                    mapFragment.getView().setVisibility(View.INVISIBLE);
+                    button.setVisibility(View.VISIBLE);
+                    messageView.setVisibility(View.VISIBLE);
+                    phoneNumber.setVisibility(View.VISIBLE);
                     return true;
                 case R.id.navigation_dashboard:
-                    mTextMessage.setText(R.string.title_dashboard);
+                    mapFragment.getView().setVisibility(View.VISIBLE);
+                    button.setVisibility(View.INVISIBLE);
+                    messageView.setVisibility(View.INVISIBLE);
+                    phoneNumber.setVisibility(View.INVISIBLE);
                     return true;
                 case R.id.navigation_notifications:
-                    mTextMessage.setText(R.string.title_notifications);
+                    mapFragment.getView().setVisibility(View.INVISIBLE);
+                    button.setVisibility(View.VISIBLE);
+                    messageView.setVisibility(View.VISIBLE);
+                    phoneNumber.setVisibility(View.INVISIBLE);
                     return true;
             }
             return false;
@@ -73,13 +91,33 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        mTextMessage = (TextView) findViewById(R.id.message);
-        messageView = (TextView) findViewById(R.id.messageView);
-        messageView.setText("En attente d'un sms...");
-        button = (Button) findViewById(R.id.button);
+        alertMsg = findViewById(R.id.alertMsg);
+        alertMsg.setVisibility(View.INVISIBLE);
+        messageView = findViewById(R.id.messageView);
+        mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
+        navigation = findViewById(R.id.navigation);
+        phoneNumber = findViewById(R.id.phoneNumber);
         vibrator = (Vibrator) this.getSystemService(Context.VIBRATOR_SERVICE);
 
+        button = findViewById(R.id.button);
+        button.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Log.d("GEOLOC", "Button find my phone clicked.");
+                String phoneNumber = ((EditText)findViewById(R.id.phoneNumber)).getText().toString();
+                String msg = "[GEOLOC]HELP";
+                sendSMSMessage(phoneNumber, msg);
+            }
+        });
 
+        buttonOK = findViewById(R.id.buttonOK);
+        buttonOK.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                setLostMode(false);
+            }
+        });
+        buttonOK.setVisibility(View.INVISIBLE);
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_DENIED){
             requestPermissions(new String[]{Manifest.permission.SEND_SMS}, 160);
         }
@@ -87,9 +125,13 @@ public class MainActivity extends AppCompatActivity {
         smsListener = new SMSListener();
         registerReceiver(smsListener, new IntentFilter());
         gps = new GPSLocation(this);
+        tracker = new MapsTracker();
 
-        BottomNavigationView navigation = (BottomNavigationView) findViewById(R.id.navigation);
+        messageView.setText("En attente d'un sms...");
+        mapFragment.getMapAsync(tracker);
+
         navigation.setOnNavigationItemSelectedListener(mOnNavigationItemSelectedListener);
+        navigation.setSelectedItemId(R.id.navigation_home);
     }
 
     @Override
@@ -145,6 +187,20 @@ public class MainActivity extends AppCompatActivity {
         */
     }
 
+    public void sendSMSMessage(String phoneNumber, String msg) {
+        try {
+            SmsManager smsManager = SmsManager.getDefault();
+            smsManager.sendTextMessage(phoneNumber, null, msg, null, null);
+            Toast.makeText(this, "SMS sent!",
+                    Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            Toast.makeText(this,
+                    "SMS failed, please try again later!",
+                    Toast.LENGTH_LONG).show();
+            e.printStackTrace();
+        }
+    }
+
     @Override
     public void onRequestPermissionsResult(int requestCode,
                                            String permissions[], int[] grantResults) {
@@ -158,14 +214,31 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    public void displayPhoneLocation(double lat, double lon){
+        navigation.setSelectedItemId(R.id.navigation_dashboard);
+        tracker.searchLocation(lat, lon);
+    }
+
+    public void setLostMode(boolean lost){
+        if(lost){
+            mapFragment.getView().setVisibility(View.INVISIBLE);
+            button.setVisibility(View.INVISIBLE);
+            messageView.setVisibility(View.INVISIBLE);
+            phoneNumber.setVisibility(View.INVISIBLE);
+            alertMsg.setVisibility(View.VISIBLE);
+            buttonOK.setVisibility(View.VISIBLE);
+            vibrator. vibrate(5000);
+        }else{
+            buttonOK.setVisibility(View.INVISIBLE);
+            alertMsg.setVisibility(View.INVISIBLE);
+            navigation.setSelectedItemId(R.id.navigation_home);
+        }
+    }
+
     public void requestSpecificPermission(String permission){
         if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_DENIED){
             requestPermissions(new String[]{permission}, 160);
         }
-    }
-
-    public TextView getmTextMessage() {
-        return mTextMessage;
     }
 
     public TextView getMessageView() {
