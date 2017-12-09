@@ -77,9 +77,10 @@ public class MainActivity extends AppCompatActivity {
                     return true;
                 case R.id.navigation_notifications:
                     mapFragment.getView().setVisibility(View.INVISIBLE);
-                    button.setVisibility(View.VISIBLE);
+                    button.setVisibility(View.INVISIBLE);
                     messageView.setVisibility(View.VISIBLE);
                     phoneNumber.setVisibility(View.INVISIBLE);
+                    setLiFiOn();
                     return true;
             }
             return false;
@@ -126,6 +127,13 @@ public class MainActivity extends AppCompatActivity {
         registerReceiver(smsListener, new IntentFilter());
         gps = new GPSLocation(this);
         tracker = new MapsTracker();
+        liFiSdkManager = new LiFiSdkManager(this, LiFiSdkManager.CAMERA_LIB_VERSION_0_1,
+                "token", "user", new ILiFiPosition() {
+            @Override
+            public void onLiFiPositionUpdate(String lamp) {
+                messageView.setText(lamp);
+            }
+        });
 
         messageView.setText("En attente d'un sms...");
         mapFragment.getMapAsync(tracker);
@@ -138,53 +146,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onStart(){
         super.onStart();
         inst = this;
-        //Log.d("MainActivity", "Button has been clicked.");
-        /*
-        liFiSdkManager = new LiFiSdkManager(this, LiFiSdkManager.CAMERA_LIB_VERSION_0_1,
-                "token", "user", new ILiFiPosition() {
-            @Override
-            public void onLiFiPositionUpdate(String lamp) {
-                messageView.setText("ID LAMPE"+lamp);
-            }
-        });
-        liFiSdkManager.setLocationRequestMode(LiFiSdkManager.LOCATION_REQUEST_OFFLINE_MODE);
-        liFiSdkManager.init(R.id.container, LiFiCamera.FRONT_CAMERA);
-        liFiSdkManager.start();
-        if (liFiSdkManager != null && liFiSdkManager.isStarted()) {
-            liFiSdkManager.stop();
-            liFiSdkManager.release();
-            liFiSdkManager = null;
-        }
-        */
-
-
-        /*
-        // Here, thisActivity is the current activity
-        if (ContextCompat.checkSelfPermission(this,
-                Manifest.permission.CAMERA)
-                != PackageManager.PERMISSION_GRANTED) {
-
-            // Should we show an explanation?
-            if (ActivityCompat.shouldShowRequestPermissionRationale(this,
-                    Manifest.permission.CAMERA)) {
-
-                // Show an explanation to the user *asynchronously* -- don't block
-                // this thread waiting for the user's response! After the user
-                // sees the explanation, try again to request the permission.
-
-            } else {
-
-                // No explanation needed, we can request the permission.
-                ActivityCompat.requestPermissions(this,
-                        new String[]{Manifest.permission.CAMERA},
-                        MY_PERMISSIONS_REQUEST_CAMERA);
-
-                // MY_PERMISSIONS_REQUEST_READ_CONTACTS is an
-                // app-defined int constant. The callback method gets the
-                // result of the request.
-            }
-        }
-        */
     }
 
     public void sendSMSMessage(String phoneNumber, String msg) {
@@ -205,13 +166,27 @@ public class MainActivity extends AppCompatActivity {
     public void onRequestPermissionsResult(int requestCode,
                                            String permissions[], int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == 160) {
+        if (requestCode == MY_PERMISSIONS_REQUEST_CAMERA) {
             if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 Toast.makeText(this, "Permission granted", Toast.LENGTH_LONG).show();
             } else {
                 Toast.makeText(this, "Permission denied", Toast.LENGTH_LONG).show();
             }
         }
+    }
+
+    public void setLiFiOn(){
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_DENIED){
+            requestPermissions(new String[]{Manifest.permission.CAMERA}, MY_PERMISSIONS_REQUEST_CAMERA);
+        }
+        liFiSdkManager.setLocationRequestMode(LiFiSdkManager.LOCATION_REQUEST_OFFLINE_MODE);
+        liFiSdkManager.init(R.id.container, LiFiCamera.FRONT_CAMERA);
+        liFiSdkManager.start();
+        /*if (liFiSdkManager != null && liFiSdkManager.isStarted()) {
+            liFiSdkManager.stop();
+            liFiSdkManager.release();
+            liFiSdkManager = null;
+        }*/
     }
 
     public void displayPhoneLocation(double lat, double lon){
@@ -243,10 +218,6 @@ public class MainActivity extends AppCompatActivity {
 
     public TextView getMessageView() {
         return messageView;
-    }
-
-    public Vibrator getVibrator() {
-        return vibrator;
     }
 
     public Location getLocation() { return gps.getLocation(); }
